@@ -14,6 +14,7 @@ import inspect
 import warnings
 from typing import List, Optional, Union
 from tqdm.auto import tqdm
+
 # Upscaler
 sys.path.append("Real-ESRGAN")
 from basicsr.archs.rrdbnet_arch import RRDBNet
@@ -69,13 +70,19 @@ class StableDiffusionImg2ImgPipeline(DiffusionPipeline):
         elif isinstance(prompt, list):
             batch_size = len(prompt)
         else:
-            raise ValueError(f"`prompt` has to be of type `str` or `list` but is {type(prompt)}")
+            raise ValueError(
+                f"`prompt` has to be of type `str` or `list` but is {type(prompt)}"
+            )
 
         if strength < 0 or strength > 1:
-          raise ValueError(f'The value of strength should in [0.0, 1.0] but is {strength}')
+            raise ValueError(
+                f"The value of strength should in [0.0, 1.0] but is {strength}"
+            )
 
         # set timesteps
-        accepts_offset = "offset" in set(inspect.signature(self.scheduler.set_timesteps).parameters.keys())
+        accepts_offset = "offset" in set(
+            inspect.signature(self.scheduler.set_timesteps).parameters.keys()
+        )
         extra_set_kwargs = {}
         offset = 0
         if accepts_offset:
@@ -90,13 +97,15 @@ class StableDiffusionImg2ImgPipeline(DiffusionPipeline):
 
         # prepare init_latents noise to latents
         init_latents = torch.cat([init_latents] * batch_size)
-        
+
         # get the original timestep using init_timestep
         init_timestep = int(num_inference_steps * strength) + offset
         init_timestep = min(init_timestep, num_inference_steps)
         timesteps = self.scheduler.timesteps[-init_timestep]
-        timesteps = torch.tensor([timesteps] * batch_size, dtype=torch.long, device=self.device)
-        
+        timesteps = torch.tensor(
+            [timesteps] * batch_size, dtype=torch.long, device=self.device
+        )
+
         # add noise to latents using the timesteps
         noise = torch.randn(init_latents.shape, generator=generator, device=self.device)
         init_latents = self.scheduler.add_noise(init_latents, noise, timesteps)
@@ -119,21 +128,27 @@ class StableDiffusionImg2ImgPipeline(DiffusionPipeline):
         if do_classifier_free_guidance:
             max_length = text_input.input_ids.shape[-1]
             uncond_input = self.tokenizer(
-                [""] * batch_size, padding="max_length", max_length=max_length, return_tensors="pt"
+                [""] * batch_size,
+                padding="max_length",
+                max_length=max_length,
+                return_tensors="pt",
             )
-            uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(self.device))[0]
+            uncond_embeddings = self.text_encoder(
+                uncond_input.input_ids.to(self.device)
+            )[0]
 
             # For classifier free guidance, we need to do two forward passes.
             # Here we concatenate the unconditional and text embeddings into a single batch
             # to avoid doing two forward passes
             text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
-
         # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
         # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
         # eta corresponds to η in DDIM paper: https://arxiv.org/abs/2010.02502
         # and should be between [0, 1]
-        accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys())
+        accepts_eta = "eta" in set(
+            inspect.signature(self.scheduler.step).parameters.keys()
+        )
         extra_step_kwargs = {}
         if accepts_eta:
             extra_step_kwargs["eta"] = eta
@@ -142,18 +157,26 @@ class StableDiffusionImg2ImgPipeline(DiffusionPipeline):
         t_start = max(num_inference_steps - init_timestep + offset, 0)
         for i, t in tqdm(enumerate(self.scheduler.timesteps[t_start:])):
             # expand the latents if we are doing classifier free guidance
-            latent_model_input = torch.cat([latents] * 2) if do_classifier_free_guidance else latents
+            latent_model_input = (
+                torch.cat([latents] * 2) if do_classifier_free_guidance else latents
+            )
 
             # predict the noise residual
-            noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings)["sample"]
+            noise_pred = self.unet(
+                latent_model_input, t, encoder_hidden_states=text_embeddings
+            )["sample"]
 
             # perform guidance
             if do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                noise_pred = noise_pred_uncond + guidance_scale * (
+                    noise_pred_text - noise_pred_uncond
+                )
 
             # compute the previous noisy sample x_t -> x_t-1
-            latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs)["prev_sample"]
+            latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs)[
+                "prev_sample"
+            ]
 
         # scale and decode the image latents with vae
         latents = 1 / 0.18215 * latents
@@ -167,67 +190,84 @@ class StableDiffusionImg2ImgPipeline(DiffusionPipeline):
 
         return {"sample": image}
 
+
 def dummy_safety_checker(images, **kwargs):
-  return images, False
+    return images, False
+
 
 lms = LMSDiscreteScheduler(
-    beta_start=0.00085, 
-    beta_end=0.012, 
-    beta_schedule="scaled_linear"
+    beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear"
 )
 
 last_pipe_type = None
 pipe = None
+
+
 def open_pipe(type="txt2img"):
-  global last_pipe_type
-  global pipe
-  if last_pipe_type is not None and type == last_pipe_type:
+    global last_pipe_type
+    global pipe
+    if last_pipe_type is not None and type == last_pipe_type:
+        return pipe
+
+    if type == "txt2img":
+        pipe = StableDiffusionPipeline.from_pretrained(
+            "CompVis/stable-diffusion-v1-4", revision="fp16", scheduler=lms
+        ).to("cuda")
+
+    elif type == "img2img":
+        scheduler = DDIMScheduler(
+            beta_start=0.00085,
+            beta_end=0.012,
+            beta_schedule="scaled_linear",
+            clip_sample=False,
+            set_alpha_to_one=False,
+        )
+        pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+            "CompVis/stable-diffusion-v1-4",
+            scheduler=scheduler,
+            revision="fp16",
+            torch_dtype=torch.float16,
+        ).to("cuda")
+
+    else:
+        print("Error, type have to be txt2img or img2img")
+        return None
+
+    pipe.safety_checker = dummy_safety_checker
+    last_pipe_type = type
     return pipe
 
-  if type == "txt2img":
-    pipe = StableDiffusionPipeline.from_pretrained(
-        "CompVis/stable-diffusion-v1-4",
-        revision="fp16",
-        scheduler=lms
-    ).to("cuda")
-
-  elif type == "img2img":
-    scheduler = DDIMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False, set_alpha_to_one=False)
-    pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-        "CompVis/stable-diffusion-v1-4",
-        scheduler=scheduler,
-        revision="fp16",
-        torch_dtype=torch.float16
-    ).to("cuda")
-  
-  else:
-    print("Error, type have to be txt2img or img2img")
-    return None
-
-  pipe.safety_checker = dummy_safety_checker
-  last_pipe_type = type
-  return pipe
 
 # Upscaler Model setup
 def setup_upscaler(modelname: str, scale: float, half_precision: bool):
-  if modelname == None or modelname == "RealESRGAN_x4plus":
-    model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
-    netscale = 4
-  elif modelname in ['RealESRGAN_x4plus_anime_6B']:  # x4 RRDBNet model with 6 blocks
-    model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
-    netscale = 4    
-  else:
-    return None
-  
-  model_path = "Real-ESRGAN/experiments/pretrained_models/{}.pth".format(modelname)
-  upsampler = RealESRGANer(
-    scale=netscale,
-    model_path=model_path,
-    model=model,
-    tile=0,
-    tile_pad=10,
-    pre_pad=0,
-    half=half_precision,
-    gpu_id=0)
-  
-  return upsampler
+    if modelname == None or modelname == "RealESRGAN_x4plus":
+        model = RRDBNet(
+            num_in_ch=3,
+            num_out_ch=3,
+            num_feat=64,
+            num_block=23,
+            num_grow_ch=32,
+            scale=4,
+        )
+        netscale = 4
+    elif modelname in ["RealESRGAN_x4plus_anime_6B"]:  # x4 RRDBNet model with 6 blocks
+        model = RRDBNet(
+            num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4
+        )
+        netscale = 4
+    else:
+        return None
+
+    model_path = "Real-ESRGAN/experiments/pretrained_models/{}.pth".format(modelname)
+    upsampler = RealESRGANer(
+        scale=netscale,
+        model_path=model_path,
+        model=model,
+        tile=0,
+        tile_pad=10,
+        pre_pad=0,
+        half=half_precision,
+        gpu_id=0,
+    )
+
+    return upsampler
