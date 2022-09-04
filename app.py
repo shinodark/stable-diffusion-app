@@ -1,5 +1,17 @@
 from app_model import *
-from app_utils import *
+import streamlit as st
+import streamlit.components.v1 as components
+
+# Image preprocessing
+def preprocess(image, sizemax):
+    w, h = sizemax
+    w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
+    image = image.resize((w, h))
+    image.thumbnail(sizemax, resample=PIL.Image.LANCZOS)
+    image = np.array(image).astype(np.float32) / 255.0
+    image = image[None].transpose(0, 3, 1, 2)
+    image = torch.from_numpy(image)
+    return 2.0 * image - 1.0
 
 # Inference function
 def infer(
@@ -98,25 +110,17 @@ def infer(
                     progress_bar.progress(float(progress_count / progress_total))
     return images_origin, images_upscaled, seed
 
-
-# Streamlit GUI
-import streamlit as st
-import streamlit.components.v1 as components
-
 st.set_page_config(
     page_title="Stable Diffusion All in One",
     page_icon="🧊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+    
 st.subheader(
     "Stable Diffusion txt2img and img2img, with upscaling (RealESRGAN and GFPGAN)"
 )
 with st.sidebar:
-    prompt = st.text_input(
-        "Prompt",
-        placeholder="concept art of a far-future city, key visual, summer day, highly detailed, digital painting, artstation, concept art, sharp focus, in harmony with nature, streamlined, by makoto shinkai and akihiko yoshida and hidari and wlop",
-    )
     with st.expander("Optional image input"):
         init_image = st.file_uploader(
             "Initial Image", type=["png", "jpg", "webp", "jpeg"]
@@ -138,7 +142,7 @@ with st.sidebar:
         step=0.5,
         value=7.0,
     )
-    num_images = st.slider("Num Images", min_value=1, max_value=30, step=1, value=1)
+    num_images = st.slider("Num Images", min_value=1, max_value=20, step=1, value=1)
     with st.expander("Upsampling"):
         upsampling_model = st.selectbox(
             "Upsampling Model",
@@ -161,55 +165,53 @@ with st.sidebar:
     st.write(" ")
     st.write(" ")
 
+prompt = st.text_input(
+    "Prompt",
+    placeholder="concept art of a far-future city, key visual, summer day, highly detailed, digital painting, artstation, concept art, sharp focus, in harmony with nature, streamlined, by makoto shinkai and akihiko yoshida and hidari and wlop",
+)
 with st.expander("Prompt build helper"):
     components.iframe(
         "https://promptomania.com/generic-prompt-builder/", height=600, scrolling=True
     )
 
 if st.button("Run !"):
-    lock_fd = acquire_lock(LOCK_PATH)
-    if (
-        lock_fd is not None
-    ):  # prevent parallel runs because it demands too much ressources
-        with st.spinner("Generating..."):
-            progress_bar = st.progress(0)
-            prompt = prompt.replace(
-                "!dream ", ""
-            )  # in case of a copy / paste from a !dream prompt
-            try:
-                images_origin, images_upscaled, seed = infer(
-                    prompt,
-                    init_image,
-                    width,
-                    height,
-                    steps,
-                    cfg_scale,
-                    strength,
-                    num_images,
-                    seed,
-                    upsampling_model,
-                    upsampler_scale,
-                    upsampler_half_precision,
-                    upsampler_gfpgan,
-                    progress_bar,
-                )
-            except Exception as e:
-                st.error(e, icon="💥")
-            else:
-                st.info("Seed : " + str(seed))
-                if upsampling_model != "None":
-                    tab1, tab2 = st.columns(2)
-                    with tab1:
-                        st.header("Original images")
-                        with st.container():
-                            st.image(images_origin)
-                    with tab2:
-                        st.header("Upscaled images")
-                        with st.container():
-                            st.image(images_upscaled)
-                else:
+    with st.spinner("Generating..."):
+        progress_bar = st.progress(0)
+        prompt = prompt.replace(
+            "!dream ", ""
+        )  # in case of a copy / paste from a !dream prompt
+        try:
+            images_origin, images_upscaled, seed = infer(
+                prompt,
+                init_image,
+                width,
+                height,
+                steps,
+                cfg_scale,
+                strength,
+                num_images,
+                seed,
+                upsampling_model,
+                upsampler_scale,
+                upsampler_half_precision,
+                upsampler_gfpgan,
+                progress_bar,
+            )
+        except Exception as e:
+            st.error(e, icon="💥")
+            raise e
+        else:
+            st.info("Seed : " + str(seed))
+            if upsampling_model != "None":
+                tab1, tab2 = st.columns(2)
+                with tab1:
+                    st.header("Original images")
                     with st.container():
                         st.image(images_origin)
-            release_lock(lock_fd)
-    else:
-        st.warning("Busy atm, try later...", icon="🔥")
+                with tab2:
+                    st.header("Upscaled images")
+                    with st.container():
+                        st.image(images_upscaled)
+            else:
+                with st.container():
+                    st.image(images_origin)
