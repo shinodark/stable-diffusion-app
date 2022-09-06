@@ -1,36 +1,17 @@
-import random
 import sys
-import os
-import gc
-import cv2
-import time
-from torch import autocast
-import torch
-import numpy as np
-from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, LMSDiscreteScheduler
-import PIL
-from PIL import Image
-import inspect
-import warnings
-from typing import List, Optional, Union
-from tqdm.auto import tqdm
+
 import streamlit as st
+import torch
+from diffusers import (DDIMScheduler, LMSDiscreteScheduler,
+                       StableDiffusionImg2ImgPipeline, StableDiffusionPipeline)
 
 # Upscaler
 sys.path.append("../Real-ESRGAN")
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from realesrgan import RealESRGANer
-from realesrgan.archs.srvgg_arch import SRVGGNetCompact
+
 from gfpgan import GFPGANer
 
-from diffusers import (
-    AutoencoderKL,
-    DDIMScheduler,
-    DiffusionPipeline,
-    PNDMScheduler,
-    UNet2DConditionModel,
-)
-from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
 
 def dummy_safety_checker(images, **kwargs):
     return images, False
