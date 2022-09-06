@@ -89,7 +89,7 @@ def infer(
                     im_origin = np.asarray(im_origin)
                     if upsampler_gfpgan:
                         face_enhancer = GFPGANer(
-                            model_path="Real-ESRGAN/experiments/pretrained_models/GFPGANv1.3.pth",
+                            model_path="../Real-ESRGAN/experiments/pretrained_models/GFPGANv1.3.pth",
                             upscale=upsampler_scale,
                             arch="clean",
                             channel_multiplier=2,

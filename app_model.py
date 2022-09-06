@@ -17,7 +17,7 @@ from tqdm.auto import tqdm
 import streamlit as st
 
 # Upscaler
-sys.path.append("Real-ESRGAN")
+sys.path.append("../Real-ESRGAN")
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from realesrgan import RealESRGANer
 from realesrgan.archs.srvgg_arch import SRVGGNetCompact
@@ -51,7 +51,8 @@ def open_pipe(type="txt2img"):
 
     if type == "txt2img":
         pipe = StableDiffusionPipeline.from_pretrained(
-            "CompVis/stable-diffusion-v1-4", revision="fp16", scheduler=lms
+            "CompVis/stable-diffusion-v1-4", revision="fp16",
+            torch_dtype=torch.float16, scheduler=lms
         ).to("cuda")
 
     elif type == "img2img":
@@ -73,6 +74,7 @@ def open_pipe(type="txt2img"):
         print("Error, type have to be txt2img or img2img")
         return None
 
+    pipe.enable_attention_slicing()
     pipe.safety_checker = dummy_safety_checker
     last_pipe_type = type
     return pipe
@@ -98,7 +100,7 @@ def setup_upscaler(modelname: str, scale: float, half_precision: bool):
     else:
         return None
 
-    model_path = "Real-ESRGAN/experiments/pretrained_models/{}.pth".format(modelname)
+    model_path = "../Real-ESRGAN/experiments/pretrained_models/{}.pth".format(modelname)
     upsampler = RealESRGANer(
         scale=netscale,
         model_path=model_path,
