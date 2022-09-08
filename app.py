@@ -117,6 +117,9 @@ def infer(
                     images_upscaled.append(output)
                     progress_count = progress_count + 1
                     progress_bar.progress(float(progress_count / progress_total))
+            # deterministic seed for next image
+            seed = seed + 1
+            generator = torch.Generator("cuda").manual_seed(seed)
     return images_origin, images_upscaled, seed
 
 st.set_page_config(
