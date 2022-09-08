@@ -55,7 +55,7 @@ def open_pipe(type="txt2img"):
         print("Error, type have to be txt2img or img2img")
         return None
 
-    pipe.enable_attention_slicing()
+    pipe.enable_attention_slicing(slice_size = 4)
     pipe.safety_checker = dummy_safety_checker
     last_pipe_type = type
     return pipe
