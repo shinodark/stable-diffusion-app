@@ -25,6 +25,7 @@ def preprocess(image, sizemax):
 # Inference function
 def infer(
     prompt: str,
+    negative_prompt: str,
     init_image_file,
     width: int,
     height: int,
@@ -74,6 +75,7 @@ def infer(
             if type == "txt2img":
                 results_origin = pipe(
                     prompt=prompt,
+                    negative_prompt=negative_prompt,
                     num_inference_steps=steps,
                     width=width,
                     height=height,
@@ -84,6 +86,7 @@ def infer(
                 results_origin = pipe(
                     init_image=init_image,
                     prompt=prompt,
+                    negative_prompt=negative_prompt,
                     num_inference_steps=steps,
                     guidance_scale=cfg_scale,
                     strength=strength,
@@ -179,7 +182,11 @@ with st.sidebar:
 
 prompt = st.text_input(
     "Prompt",
-    placeholder="concept art of a far-future city, key visual, summer day, highly detailed, digital painting, artstation, concept art, sharp focus, in harmony with nature, streamlined, by makoto shinkai and akihiko yoshida and hidari and wlop",
+    placeholder="bouquet of roses",
+)
+negative_prompt = st.text_input(
+    "Prompt",
+    placeholder="red rose",
 )
 with st.expander("Prompt build helper"):
     components.iframe(
@@ -195,6 +202,7 @@ if st.button("Run !"):
         try:
             images_origin, images_upscaled, seed = infer(
                 prompt,
+                negative_prompt,
                 init_image,
                 width,
                 height,
