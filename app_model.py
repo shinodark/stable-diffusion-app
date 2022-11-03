@@ -16,11 +16,6 @@ from gfpgan import GFPGANer
 def dummy_safety_checker(images, **kwargs):
     return images, False
 
-
-lms = LMSDiscreteScheduler(
-    beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear"
-)
-
 last_pipe_type = None
 pipe = None
 
@@ -31,9 +26,12 @@ def open_pipe(type="txt2img"):
         return pipe
 
     if type == "txt2img":
+        scheduler = LMSDiscreteScheduler(
+            beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear"
+        )
         pipe = StableDiffusionPipeline.from_pretrained(
             "runwayml/stable-diffusion-v1-5", revision="fp16",
-            torch_dtype=torch.float16, scheduler=lms
+            torch_dtype=torch.float16, scheduler=scheduler
         ).to("cuda")
 
     elif type == "img2img":
