@@ -81,7 +81,7 @@ def infer(
                     height=height,
                     guidance_scale=cfg_scale,
                     generator=generator,
-                )["sample"]
+                ).images
             elif type == "img2img":
                 results_origin = pipe(
                     init_image=init_image,
@@ -91,7 +91,7 @@ def infer(
                     guidance_scale=cfg_scale,
                     strength=strength,
                     generator=generator,
-                )["sample"]
+                ).images
             images_origin.extend(results_origin)
             progress_count = progress_count + len(results_origin)
             progress_bar.progress(float(progress_count / progress_total))
