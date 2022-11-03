@@ -32,7 +32,7 @@ def open_pipe(type="txt2img"):
 
     if type == "txt2img":
         pipe = StableDiffusionPipeline.from_pretrained(
-            "CompVis/stable-diffusion-v1-5", revision="fp16",
+            "runwayml/stable-diffusion-v1-5", revision="fp16",
             torch_dtype=torch.float16, scheduler=lms
         ).to("cuda")
 
@@ -45,7 +45,7 @@ def open_pipe(type="txt2img"):
             set_alpha_to_one=False,
         )
         pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-            "CompVis/stable-diffusion-v1-5",
+            "runwayml/stable-diffusion-v1-5",
             scheduler=scheduler,
             revision="fp16",
             torch_dtype=torch.float16,
