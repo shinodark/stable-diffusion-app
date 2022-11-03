@@ -185,7 +185,7 @@ prompt = st.text_input(
     placeholder="bouquet of roses",
 )
 negative_prompt = st.text_input(
-    "Prompt",
+    "Negative prompt",
     placeholder="red rose",
 )
 with st.expander("Prompt build helper"):
