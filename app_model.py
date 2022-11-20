@@ -1,9 +1,15 @@
 import sys
-
+import os
 import streamlit as st
 import torch
-from diffusers import (DDIMScheduler, LMSDiscreteScheduler,
-                       StableDiffusionImg2ImgPipeline, StableDiffusionPipeline)
+from diffusers import (
+    DDIMScheduler,
+    LMSDiscreteScheduler,
+    EulerDiscreteScheduler,
+    EulerAncestralDiscreteScheduler,
+    StableDiffusionImg2ImgPipeline,
+    StableDiffusionPipeline,
+)
 
 # Upscaler
 sys.path.append("../Real-ESRGAN")
@@ -12,51 +18,11 @@ from realesrgan import RealESRGANer
 
 from gfpgan import GFPGANer
 
+MODEL_PATH = "d:/dev/models"
+
 
 def dummy_safety_checker(images, **kwargs):
     return images, False
-
-last_pipe_type = None
-pipe = None
-
-def open_pipe(type="txt2img"):
-    global last_pipe_type
-    global pipe
-    if last_pipe_type is not None and type == last_pipe_type:
-        return pipe
-
-    if type == "txt2img":
-        scheduler = LMSDiscreteScheduler(
-            beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear"
-        )
-        pipe = StableDiffusionPipeline.from_pretrained(
-            "runwayml/stable-diffusion-v1-5", revision="fp16",
-            torch_dtype=torch.float16, scheduler=scheduler
-        ).to("cuda")
-
-    elif type == "img2img":
-        scheduler = DDIMScheduler(
-            beta_start=0.00085,
-            beta_end=0.012,
-            beta_schedule="scaled_linear",
-            clip_sample=False,
-            set_alpha_to_one=False,
-        )
-        pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-            "runwayml/stable-diffusion-v1-5",
-            scheduler=scheduler,
-            revision="fp16",
-            torch_dtype=torch.float16,
-        ).to("cuda")
-
-    else:
-        print("Error, type have to be txt2img or img2img")
-        return None
-
-    pipe.enable_attention_slicing(slice_size = 4)
-    pipe.safety_checker = dummy_safety_checker
-    last_pipe_type = type
-    return pipe
 
 
 # Upscaler Model setup
@@ -92,3 +58,93 @@ def setup_upscaler(modelname: str, scale: float, half_precision: bool):
     )
 
     return upsampler
+
+
+class PipeManager:
+    def __init__(self):
+        self._type = None
+        self._scheduler = None
+        self._model = None
+        self._dirty = True
+        self._pipe = None
+
+    @property
+    def type(self):
+        return self._type
+
+    @type.setter
+    def type(self, new_value):
+        self._dirty = new_value != self._type
+        self._type = new_value
+
+    @property
+    def scheduler(self):
+        return self._scheduler
+
+    @scheduler.setter
+    def scheduler(self, new_value):
+        self._dirty = new_value != self._scheduler
+        self._scheduler = new_value
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, new_value):
+        self._dirty = new_value != self._model
+        self._model = new_value
+
+    def open_pipe(self):
+        if self._dirty == False:
+            return self._pipe
+
+        # Scheduler creation
+        if self._scheduler == "DDIM":
+            scheduler = DDIMScheduler(
+                beta_start=0.00085,
+                beta_end=0.012,
+                beta_schedule="scaled_linear",
+                clip_sample=False,
+                set_alpha_to_one=False,
+            )
+        elif self._scheduler == "LMS":
+            scheduler = LMSDiscreteScheduler(
+                beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear"
+            )
+        elif self._scheduler == "Euler":
+            scheduler = EulerDiscreteScheduler(
+                beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear"
+            )
+        elif self._scheduler == "EulerA":
+            scheduler = EulerAncestralDiscreteScheduler(
+                beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear"
+            )
+
+        # Pipe creation
+        model_full_path = os.path.join(MODEL_PATH, self.model)
+        if self._type == "txt2img":
+            self._pipe = StableDiffusionPipeline.from_pretrained(
+                model_full_path,
+                revision="fp16",
+                torch_dtype=torch.float16,
+                scheduler=scheduler,
+            ).to("cuda")
+
+        elif self._type == "img2img":
+            self._pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+                model_full_path,
+                scheduler=scheduler,
+                revision="fp16",
+                torch_dtype=torch.float16,
+            ).to("cuda")
+
+        else:
+            print("Error, type have to be txt2img or img2img")
+            return None
+
+        self._pipe.enable_xformers_memory_efficient_attention()
+        # self.pipe.enable_attention_slicing(slice_size=4)
+        self._pipe.safety_checker = dummy_safety_checker
+        self._dirty = False
+        return self._pipe
