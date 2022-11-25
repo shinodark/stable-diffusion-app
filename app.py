@@ -1,5 +1,6 @@
 import gc
 import random
+import os
 
 import numpy as np
 import PIL
@@ -195,9 +196,11 @@ with st.sidebar:
     st.write(" ")
     st.write(" ")
 
+# get models list
+models_list = next(os.walk(MODEL_PATH))[1]
 model = st.selectbox(
     "Model",
-    options=["runwayml/stable-diffusion-v1-5", "samdoartsultmerge"],
+    options=models_list,
     index=0,
 )
 prompt = st.text_input(
